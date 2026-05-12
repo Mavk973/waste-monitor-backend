@@ -1,9 +1,27 @@
+import time
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine, SessionLocal
 from routers import auth, batches, sites, dashboard, analytics, notifications, users, export
+
+logger = logging.getLogger(__name__)
+
+
+def _wait_for_db(retries: int = 10, delay: int = 3):
+    from sqlalchemy import text
+    for attempt in range(retries):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            logger.info("Database connection established.")
+            return
+        except Exception as e:
+            logger.warning(f"DB not ready (attempt {attempt + 1}/{retries}): {e}")
+            time.sleep(delay)
+    raise RuntimeError("Could not connect to the database after multiple retries.")
 
 
 def _seed_admin():
@@ -19,12 +37,16 @@ def _seed_admin():
                 role="manager",
             ))
             db.commit()
+            logger.info("Default admin user created.")
+    except Exception as e:
+        logger.error(f"Failed to seed admin: {e}")
     finally:
         db.close()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _wait_for_db()
     Base.metadata.create_all(bind=engine)
     _seed_admin()
     yield
