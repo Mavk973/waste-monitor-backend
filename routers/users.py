@@ -93,12 +93,13 @@ def update_user(
     if data.role and data.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Недопустимая роль. Допустимые: {VALID_ROLES}")
 
-    if data.site_id:
+    if data.site_id is not None:
         site = db.query(models.Site).filter(models.Site.id == data.site_id).first()
         if not site:
             raise HTTPException(status_code=404, detail="Объект не найден")
 
-    for field, value in data.model_dump(exclude_none=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
         setattr(user, field, value)
 
     db.commit()
@@ -121,6 +122,11 @@ def delete_user(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    # Nullify operator_id in batches to avoid FK constraint violation
+    db.query(models.WasteBatch).filter(
+        models.WasteBatch.operator_id == user_id
+    ).update({"operator_id": None})
 
     db.delete(user)
     db.commit()

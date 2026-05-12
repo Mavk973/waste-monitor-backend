@@ -24,12 +24,13 @@ def _wait_for_db(retries: int = 10, delay: int = 3):
     raise RuntimeError("Could not connect to the database after multiple retries.")
 
 
-def _seed_admin():
+def _seed_defaults():
     import models as m
     from auth import hash_password
     db = SessionLocal()
     try:
-        if not db.query(m.User).first():
+        # Create admin if not exists (check by username, not by user count)
+        if not db.query(m.User).filter(m.User.username == "admin").first():
             db.add(m.User(
                 username="admin",
                 full_name="Администратор",
@@ -37,9 +38,19 @@ def _seed_admin():
                 role="manager",
             ))
             db.commit()
-            logger.info("Default admin user created.")
+            logger.info("Default admin user created: admin / Admin1234!")
+
+        # Create default sites if none exist
+        if not db.query(m.Site).first():
+            db.add_all([
+                m.Site(name="Площадка №1"),
+                m.Site(name="Площадка №2"),
+            ])
+            db.commit()
+            logger.info("Default sites created.")
     except Exception as e:
-        logger.error(f"Failed to seed admin: {e}")
+        logger.error(f"Failed to seed defaults: {e}")
+        db.rollback()
     finally:
         db.close()
 
@@ -48,7 +59,7 @@ def _seed_admin():
 async def lifespan(app: FastAPI):
     _wait_for_db()
     Base.metadata.create_all(bind=engine)
-    _seed_admin()
+    _seed_defaults()
     yield
 
 
