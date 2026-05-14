@@ -131,7 +131,20 @@ def create_batch(
     db.add(batch)
     db.flush()
 
-    stage_list = data.stages if data.stages else [schemas.StageIn(**s) for s in DEFAULT_STAGES]
+    if data.stages:
+        stage_list = data.stages
+    else:
+        templates = (
+            db.query(models.StageTemplate)
+            .filter(models.StageTemplate.is_active == True)
+            .order_by(models.StageTemplate.order_index)
+            .all()
+        )
+        if templates:
+            stage_list = [schemas.StageIn(stage_name=t.stage_name, norm_minutes=t.norm_minutes) for t in templates]
+        else:
+            stage_list = [schemas.StageIn(**s) for s in DEFAULT_STAGES]
+
     for idx, s in enumerate(stage_list):
         stage = models.BatchStage(
             batch_id=batch.id,
@@ -142,6 +155,7 @@ def create_batch(
         )
         db.add(stage)
 
+    _log_action(db, batch.id, current_user, "batch_created", f"Партия «{batch.waste_name}» создана")
     db.commit()
     db.refresh(batch)
     return _batch_to_out(batch)
@@ -266,6 +280,13 @@ def stage_action(
     now = datetime.utcnow()
     action = data.action
 
+    action_labels = {
+        "start": "Этап начат",
+        "pause": "Этап приостановлен",
+        "resume": "Этап возобновлён",
+        "complete": "Этап завершён",
+    }
+
     if action == "start":
         stage.status = "in_progress"
         stage.started_at = now
@@ -285,10 +306,11 @@ def stage_action(
                 break
         _create_notification(db, batch, "stage_completed", f"Этап «{stage.stage_name}» завершён")
         if not next_started:
-            _create_notification(db, batch, "batch_completed", f"Партия «{batch.waste_name}» полностью завершена")
+            _create_notification(db, batch, "batch_completed", f"Партия «{stage.batch.waste_name}» полностью завершена")
     else:
         raise HTTPException(status_code=400, detail="Неизвестное действие")
 
+    _log_action(db, batch_id, current_user, action_labels.get(action, action), f"Этап: {stage.stage_name}")
     db.commit()
     return {"ok": True}
 
@@ -327,8 +349,46 @@ async def record_deviation(
         stage.status = "deviation"
 
     _create_notification(db, batch, "deviation", f"Отклонение: {description[:80]}")
+    _log_action(db, batch_id, current_user, "Отклонение зафиксировано", f"{type}: {description[:100]}")
     db.commit()
     return {"ok": True}
+
+
+@router.get("/{batch_id}/audit-log")
+def get_audit_log(
+    batch_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(get_current_user),
+):
+    batch = db.query(models.WasteBatch).filter(models.WasteBatch.id == batch_id).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Партия не найдена")
+    logs = (
+        db.query(models.AuditLog)
+        .filter(models.AuditLog.batch_id == batch_id)
+        .order_by(models.AuditLog.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": l.id,
+            "user_name": l.user_name,
+            "action": l.action,
+            "details": l.details,
+            "created_at": l.created_at,
+        }
+        for l in logs
+    ]
+
+
+def _log_action(db: Session, batch_id: int, user: models.User, action: str, details: str = None):
+    db.add(models.AuditLog(
+        batch_id=batch_id,
+        user_id=user.id,
+        user_name=user.full_name,
+        action=action,
+        details=details,
+    ))
 
 
 def _create_notification(db: Session, batch: models.WasteBatch, event_type: str, description: str):

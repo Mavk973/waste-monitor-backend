@@ -94,3 +94,23 @@ class Notification(Base):
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User", back_populates="notifications")
+
+
+class StageTemplate(Base):
+    __tablename__ = "stage_templates"
+    id = Column(Integer, primary_key=True, index=True)
+    stage_name = Column(String, nullable=False)
+    norm_minutes = Column(Integer, nullable=False, default=60)
+    order_index = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, default=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    batch_id = Column(Integer, ForeignKey("waste_batches.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_name = Column(String, nullable=False)
+    action = Column(String, nullable=False)
+    details = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

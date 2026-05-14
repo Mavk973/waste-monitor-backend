@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from auth import hash_password, verify_password, create_access_token, get_current_user
+from auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_refresh_token, get_current_user
 from database import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -46,6 +46,7 @@ def login(data: schemas.UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
 
     token = create_access_token({"sub": user.username})
+    refresh = create_refresh_token({"sub": user.username})
     user_out = schemas.UserOut(
         id=user.id,
         username=user.username,
@@ -54,7 +55,23 @@ def login(data: schemas.UserLogin, db: Session = Depends(get_db)):
         site_id=user.site_id,
         site_name=user.site.name if user.site else None,
     )
-    return schemas.Token(access_token=token, token_type="bearer", user=user_out)
+    return schemas.Token(access_token=token, refresh_token=refresh, token_type="bearer", user=user_out)
+
+
+@router.post("/refresh")
+def refresh_token(data: schemas.RefreshTokenIn, db: Session = Depends(get_db)):
+    try:
+        username = decode_refresh_token(data.refresh_token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Недействительный refresh-токен")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Пользователь не найден")
+
+    new_access = create_access_token({"sub": user.username})
+    new_refresh = create_refresh_token({"sub": user.username})
+    return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"}
 
 
 @router.get("/me", response_model=schemas.UserOut)

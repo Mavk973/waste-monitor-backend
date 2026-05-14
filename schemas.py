@@ -49,8 +49,13 @@ class ChangePassword(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
     user: UserOut
+
+
+class RefreshTokenIn(BaseModel):
+    refresh_token: str
 
 
 class StageIn(BaseModel):
@@ -190,3 +195,38 @@ class AnalyticsOut(BaseModel):
     top_reasons: List[DowntimeReasonOut]
     stage_analytics: List[StageAnalyticsOut]
     site_kpis: List[SiteKpiOut]
+
+
+class StageTemplateOut(BaseModel):
+    id: int
+    stage_name: str
+    norm_minutes: int
+    order_index: int
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+class StageTemplateCreate(BaseModel):
+    stage_name: str
+    norm_minutes: int = 60
+    order_index: int = 0
+
+
+class StageTemplateUpdate(BaseModel):
+    stage_name: Optional[str] = None
+    norm_minutes: Optional[int] = None
+    order_index: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class AuditLogOut(BaseModel):
+    id: int
+    user_name: str
+    action: str
+    details: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
