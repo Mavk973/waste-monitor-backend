@@ -20,6 +20,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False)  # operator, master, manager
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=True)
+    fcm_token = Column(String, nullable=True)
     site = relationship("Site", back_populates="users")
     notifications = relationship("Notification", back_populates="user")
 

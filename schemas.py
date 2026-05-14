@@ -58,6 +58,10 @@ class RefreshTokenIn(BaseModel):
     refresh_token: str
 
 
+class FcmTokenIn(BaseModel):
+    token: str
+
+
 class StageIn(BaseModel):
     stage_name: str
     norm_minutes: int = 60

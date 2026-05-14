@@ -8,6 +8,7 @@ import models
 import schemas
 from auth import get_current_user
 from database import get_db
+from push_service import send_push
 
 router = APIRouter(prefix="/batches", tags=["batches"])
 
@@ -395,6 +396,15 @@ def _create_notification(db: Session, batch: models.WasteBatch, event_type: str,
     users = db.query(models.User).filter(
         models.User.role.in_(["master", "manager"])
     ).all()
+    event_titles = {
+        "deviation": "⚠️ Отклонение зафиксировано",
+        "stage_completed": "✅ Этап завершён",
+        "batch_completed": "🏁 Партия завершена",
+        "stage_started": "▶️ Этап начат",
+        "overdue": "⏰ Просрочен норматив",
+    }
+    push_title = event_titles.get(event_type, "Уведомление")
+    push_body = f"{batch.waste_name}: {description}"
     for user in users:
         notif = models.Notification(
             user_id=user.id,
@@ -405,3 +415,10 @@ def _create_notification(db: Session, batch: models.WasteBatch, event_type: str,
             description=description,
         )
         db.add(notif)
+        if user.fcm_token:
+            send_push(
+                user.fcm_token,
+                title=push_title,
+                body=push_body,
+                data={"batch_id": str(batch.id), "event_type": event_type},
+            )

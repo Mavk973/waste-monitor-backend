@@ -86,6 +86,17 @@ def get_me(current_user: models.User = Depends(get_current_user)):
     )
 
 
+@router.put("/fcm-token")
+def register_fcm_token(
+    data: schemas.FcmTokenIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    current_user.fcm_token = data.token
+    db.commit()
+    return {"ok": True}
+
+
 @router.put("/password")
 def change_password(
     data: schemas.ChangePassword,

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine, SessionLocal
 from routers import auth, batches, sites, dashboard, analytics, notifications, users, export, stage_templates
+from push_service import init_firebase
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +71,23 @@ def _seed_defaults():
         db.close()
 
 
+def _add_fcm_token_column():
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token VARCHAR"))
+            conn.commit()
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _wait_for_db()
     Base.metadata.create_all(bind=engine)
+    _add_fcm_token_column()
     _seed_defaults()
+    init_firebase()
     yield
 
 
