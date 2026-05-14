@@ -190,7 +190,7 @@ def get_batch(
             "id": d.id,
             "type": d.type,
             "description": d.description,
-            "photo_path": d.photo_path,
+            "photo_url": f"/{d.photo_path}" if d.photo_path else None,
             "created_at": d.created_at,
         }
         for d in batch.deviations
