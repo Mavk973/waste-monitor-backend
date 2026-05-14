@@ -79,6 +79,7 @@ class Deviation(Base):
     type = Column(String, nullable=False)
     description = Column(Text, nullable=False)
     photo_path = Column(String, nullable=True)
+    photo_data = Column(Text, nullable=True)  # base64-encoded image
     created_at = Column(DateTime, default=datetime.utcnow)
     batch = relationship("WasteBatch", back_populates="deviations")
 

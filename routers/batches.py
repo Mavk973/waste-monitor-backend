@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
-import os, shutil
+import os, shutil, base64
 
 import models
 import schemas
@@ -190,7 +190,7 @@ def get_batch(
             "id": d.id,
             "type": d.type,
             "description": d.description,
-            "photo_url": f"/{d.photo_path}" if d.photo_path else None,
+            "photo_data": d.photo_data,
             "created_at": d.created_at,
         }
         for d in batch.deviations
@@ -330,18 +330,21 @@ async def record_deviation(
         raise HTTPException(status_code=404, detail="Партия не найдена")
 
     photo_path = None
+    photo_data = None
     if photo:
+        raw = await photo.read()
+        photo_data = base64.b64encode(raw).decode("utf-8")
         filename = f"{batch_id}_{datetime.utcnow().timestamp()}_{photo.filename}"
-        path = os.path.join(UPLOAD_DIR, filename)
-        with open(path, "wb") as f:
-            shutil.copyfileobj(photo.file, f)
-        photo_path = path
+        photo_path = os.path.join(UPLOAD_DIR, filename)
+        with open(photo_path, "wb") as f:
+            f.write(raw)
 
     deviation = models.Deviation(
         batch_id=batch_id,
         type=type,
         description=description,
         photo_path=photo_path,
+        photo_data=photo_data,
     )
     db.add(deviation)
 

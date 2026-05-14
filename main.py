@@ -72,21 +72,26 @@ def _seed_defaults():
         db.close()
 
 
-def _add_fcm_token_column():
+def _run_migrations():
     from sqlalchemy import text
+    migrations = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token VARCHAR",
+        "ALTER TABLE deviations ADD COLUMN IF NOT EXISTS photo_data TEXT",
+    ]
     with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token VARCHAR"))
-            conn.commit()
-        except Exception:
-            pass
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+            except Exception:
+                pass
+        conn.commit()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _wait_for_db()
     Base.metadata.create_all(bind=engine)
-    _add_fcm_token_column()
+    _run_migrations()
     _seed_defaults()
     init_firebase()
     yield
